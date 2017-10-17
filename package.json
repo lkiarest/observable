@@ -1,0 +1,22 @@
+{
+  "name": "observable",
+  "version": "1.0.0",
+  "description": "simple object observable tool",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node test/test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lkiarest/observable.git"
+  },
+  "keywords": [
+    "observable"
+  ],
+  "author": "qintianxiang",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/lkiarest/observable/issues"
+  },
+  "homepage": "https://github.com/lkiarest/observable#readme"
+}

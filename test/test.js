@@ -1,4 +1,4 @@
-const Observable = require('./index')
+const Observable = require('../src/index')
 
 const obj = {a:1, b: {name: 'qtx', value: 1}}
 const o1 = Observable.from(obj, true)
