@@ -4,6 +4,79 @@ const BASIC_TYPES = ['Null', 'Undefined', 'Number', 'Boolean', 'String', 'RegExp
     return `[object ${type}]`
 })
 
+/**
+ * check whether a data is of basic type
+ */
+const basicType = (data) => {
+    if (!data) {
+        return true
+    }
+
+    const typeStr = Object.prototype.toString.call(data)
+    return !!~BASIC_TYPES.indexOf(typeStr)
+}
+
+/**
+ * 深拷贝
+ */
+const deepClone = (source) => {
+    if (!source || (typeof source !== 'object')) {
+        return source
+    }
+
+    let target = null
+
+    if (Array.isArray(source)) {
+        target = [...source.map(item => deepClone(item))]
+        return target
+    }
+
+    target = Object.create(null)
+
+    Object.keys(source).forEach(key => {
+        const val = source[key]
+        if (basicType(val)) {
+            target[key] = val
+        } else if (Array.isArray(val)) {
+            const tempArr = target[key] = []
+            val.forEach(item => {
+                tempArr.push(deepClone(item))
+            })
+        } else {
+            target[key] = deepClone(val)
+        }
+    })
+
+    Object.setPrototypeOf(target, Object.getPrototypeOf(source))
+
+    return target
+}
+
+/**
+ * 根据属性路径获取对象的值
+ * @param  {Object} obj      待获取对象
+ * @param  {String} propName 要获取的属性，支持一级和多级如 'a' / 'a.b'
+ */
+const getTargetVal = (obj, propName) => {
+    const props = propName.split('.') // 拆分数组
+    let pRoot = props.shift()
+    let lastProp = ''
+    let lastValue = null // 有时需要回溯到前一个对象
+
+    while (pRoot) {
+        lastProp = pRoot
+        lastValue = obj
+        obj = obj[pRoot]
+        pRoot = props.shift()
+    }
+
+    return {
+        lastProp,
+        lastValue,
+        value: obj
+    }
+}
+
 class Observable {
     /**
      * 构造方法
@@ -12,7 +85,7 @@ class Observable {
      */
     constructor (obj, clone) {
         this._originalObj = obj
-        obj = clone ? this._clone(obj) : obj
+        obj = clone ? deepClone(obj) : obj
         this._watchObj = obj
         this._watcher = new Watcher()
 
@@ -42,16 +115,20 @@ class Observable {
         }
 
         const obj = this._watchObj
-        this._observe(obj, propName, obj[propName])
+        this._observe(obj, propName)
         return this._watcher.watch(propName, handler)
     }
 
     /**
      * 使用 setter/getter 触发监听事件
      */
-    _observe (data, propName, value) {
+    _observe (data, propName) {
         const self = this
         const watcher = this._watcher
+
+        const getRealVal = () => {
+            return getTargetVal(data, propName).value
+        }
 
         this._walk(data, propName, (obj, prop) => {
             let newVal = obj[prop]
@@ -62,9 +139,9 @@ class Observable {
                     return newVal
                 },
                 set (val) {
-                    const oldVal = newVal
+                    const oldVal = deepClone(getRealVal())
                     newVal = val
-                    watcher.notify(propName, newVal, oldVal)
+                    watcher.notify(propName, getRealVal(), oldVal)
                 }
             })
         })
@@ -81,78 +158,18 @@ class Observable {
             return
         }
 
-        const props = propName.split('.') // 拆分数组
-        let pRoot = props.shift()
-        let lastRoot = ''
-        let lastObj = null // 结尾为基本类型时回溯到前一个对象
+        const target = getTargetVal(obj, propName)
+        const targetVal = target.value
 
-        while (pRoot) {
-            lastRoot = pRoot
-            lastObj = obj
-            obj = obj[pRoot]
-            pRoot = props.shift()
-        }
-
-        if (this._basicType(obj)) {
-            callback(lastObj, lastRoot)
-        } else if (Array.isArray(obj)) {
+        if (basicType(targetVal)) {
+            callback(target.lastValue, target.lastProp)
+        } else if (Array.isArray(targetVal)) {
             // TODO: array watch
         } else { // object
-            Object.keys(obj).forEach(key => {
-                this._walk(obj, key, callback)
+            Object.keys(targetVal).forEach(key => {
+                this._walk(targetVal, key, callback)
             })
         }
-    }
-
-    /**
-     * check whether a data is of basic type
-     */
-    _basicType (data) {
-        if (!data) {
-            return true
-        }
-
-        const typeStr = Object.prototype.toString.call(data)
-        return !!~BASIC_TYPES.indexOf(typeStr)
-    }
-
-    /**
-     * 深拷贝
-     */
-    _clone (source) {
-        if (!source || (typeof source !== 'object')) {
-            return source
-        }
-
-        const basicType = this._basicType.bind(this)
-        const clone = this._clone.bind(this)
-
-        let target = null
-
-        if (Array.isArray(source)) {
-            target = [...source.map(item => clone(item))]
-            return target
-        }
-
-        target = Object.create(null)
-
-        Object.keys(source).forEach(key => {
-            const val = source[key]
-            if (basicType(val)) {
-                target[key] = val
-            } else if (Array.isArray(val)) {
-                const tempArr = target[key] = []
-                val.forEach(item => {
-                    tempArr.push(clone(item))
-                })
-            } else {
-                target[key] = clone(val)
-            }
-        })
-
-        target.__proto__ = source.__proto__
-
-        return target
     }
 }
 
